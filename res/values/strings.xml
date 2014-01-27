@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="action_settings">settings</string><string name="app_name">App_prelaunch_team</string>
+    <string name="start">Start</string>
+    <string name="toServer">toServer</string>
+    <string name="check">Process List</string>
+</resources>
