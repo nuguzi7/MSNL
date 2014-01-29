@@ -12,6 +12,7 @@ import android.app.ListActivity;
 import android.content.Context;
 import android.os.Build;
 import android.os.Bundle;
+import android.util.Log;
 import android.view.View;
 import android.widget.AdapterView;
 import android.widget.AdapterView.OnItemClickListener;
@@ -49,6 +50,7 @@ public class Dispatcher extends ListActivity {
         	String clickedItem = listItems.get(position);// getPackageName();
         	kill_test( clickedItem );
 //        	requestKillProcess( clickedItem );
+        	updateAppList(null);
         }
     };
     
@@ -72,82 +74,35 @@ public class Dispatcher extends ListActivity {
 
 	public void kill_test( String kill_app )
 	{
-		System.out.println("kill_test started");
-		/*ActivityManager am = (ActivityManager)getSystemService(ACTIVITY_SERVICE);
-        List<RunningAppProcessInfo> appProcess = am.getRunningAppProcesses();
-		for(RunningAppProcessInfo i:appProcess){
-            if( i.processName.equals(kill_app) ){
-            	i.importance = RunningAppProcessInfo.IMPORTANCE_EMPTY;
-            	am.killBackgroundProcesses(i.processName);
-        		Toast.makeText(getApplicationContext(), i.processName + " " + i.importance + "\n" + RunningAppProcessInfo.IMPORTANCE_SERVICE, Toast.LENGTH_SHORT).show();
-            }
-        }*/
-		System.out.println(kill_app);
+		String tag = "kill_test";
+		Log.i(tag, "kill_test started");
+		Log.i(tag, "kill_app : "+kill_app);
 		ActivityManager am = (ActivityManager)getSystemService(Context.ACTIVITY_SERVICE);
 		List<RunningAppProcessInfo> list = am.getRunningAppProcesses();
 		for(RunningAppProcessInfo i : list){
-			System.out.println(i.processName);
+			Log.v(tag, "process name : " + i.processName);
 			if ( i.processName.equals(kill_app) )
 			{
+				Log.i(tag, kill_app + " found! start kill");
+				Log.v(tag, "pid = " + i.pid);
 				String toastMsg = i.processName + " kill test\n"
 						+ "importance = " + i.importance;
 				Toast.makeText(getApplicationContext(), toastMsg, Toast.LENGTH_SHORT).show();
+
+				// PERFORMANCE IMPROVEMENT #1
 				i.importance = RunningAppProcessInfo.IMPORTANCE_EMPTY;
+				// PERFORMANCE IMPROVEMENT #2
+				android.os.Process.sendSignal(i.pid, android.os.Process.SIGNAL_KILL);
+
+				// KILLING METHOD #1
+				android.os.Process.killProcess(i.pid);
+				// KILLING METHOD #2
 				am.killBackgroundProcesses(i.processName);
+				
 				return;
 			}
 		}
-		System.out.println("kill_test failed");
-		/*List<RunningTaskInfo> Info = am.getRunningTasks(20);
-		for(Iterator<RunningTaskInfo> iterator = Info.iterator(); iterator.hasNext();){
-			RunningTaskInfo runningTaskInfo = (RunningTaskInfo) iterator.next();
-			String name = runningTaskInfo.topActivity.getPackageName();
-			if ( name.equals(kill_app) )
-			{
-				Toast.makeText(getApplicationContext(), kill_app + " is killed", Toast.LENGTH_SHORT).show();
-				am.killBackgroundProcesses(kill_app);
-				break;
-			}
-		}
-		Toast.makeText(getApplicationContext(), "NOT FOUND", Toast.LENGTH_SHORT).show();*/
-		/*ActivityManager am = (ActivityManager)getSystemService(ACTIVITY_SERVICE);
-		am.restartPackage(kill_app);
-		Toast.makeText(getApplicationContext(), kill_app + " is killed", Toast.LENGTH_SHORT).show();*/
-	}
-	
-	public void requestKillProcess(final String arg){
-
-		//#1. first check api level.
-		int sdkVersion = Integer.parseInt(Build.VERSION.SDK);
-		if (sdkVersion < 8){
-			//#2. if we can use restartPackage method, just use it.
-			ActivityManager am = (ActivityManager)getSystemService(ACTIVITY_SERVICE);
-			am.restartPackage(arg);
-		}else{
-			//#3. else, we should use killBackgroundProcesses method.
-			new Thread(new Runnable() {
-				@Override
-				public void run() {
-					ActivityManager am = (ActivityManager)getSystemService(ACTIVITY_SERVICE);
-					RunningServiceInfo si;
-
-					//pooling the current application process importance information.
-					while(true){
-						List<RunningAppProcessInfo> list = am.getRunningAppProcesses();
-						for(RunningAppProcessInfo i : list){
-							if(i.processName.equals(arg) == true){
-								//#4. kill the process,
-								//only if current application importance is less than IMPORTANCE_BACKGROUND
-								if(i.importance >= RunningAppProcessInfo.IMPORTANCE_BACKGROUND)
-									am.restartPackage(arg); //simple wrapper of killBackgrounProcess
-								else
-									Thread.yield();
-								break;
-							}
-						}
-					}
-				}
-			}, "Process Killer").start();
-		}
+		// Not returned == Process not found
+		Log.e(tag, "Process not found");
 	}
 }
