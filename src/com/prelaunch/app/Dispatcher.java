@@ -47,9 +47,8 @@ public class Dispatcher extends ListActivity {
     {
         public void onItemClick(AdapterView<?> parentView, View clickedView, int position, long id)
         {
-        	String clickedItem = listItems.get(position);// getPackageName();
+        	String clickedItem = listItems.get(position);
         	kill_test( clickedItem );
-//        	requestKillProcess( clickedItem );
         	updateAppList(null);
         }
     };
@@ -64,12 +63,6 @@ public class Dispatcher extends ListActivity {
 			listItems.add(runningTaskInfo.topActivity.getPackageName());
 		}
 		adapter.notifyDataSetChanged();
-		/*ActivityManager am = (ActivityManager)getSystemService(Context.ACTIVITY_SERVICE);
-		List<RunningAppProcessInfo> list = am.getRunningAppProcesses();
-		for(RunningAppProcessInfo i : list){
-			listItems.add(i.processName + " " + i.importance);
-		}
-        adapter.notifyDataSetChanged();*/
     }
 
 	public void kill_test( String kill_app )

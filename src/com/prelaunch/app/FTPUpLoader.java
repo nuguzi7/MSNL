@@ -47,8 +47,6 @@ public class FTPUpLoader {
           msg.arg1 = 2;
           ftpHdr.sendMessage(msg);
           
-          //MainActivity.printApp.append("\nConnected to " + ip + " on "+ftp.getRemotePort());
-          
           // After connection attempt, you should check the reply code to verify
           // success.
           reply = ftp.getReplyCode();
@@ -95,10 +93,6 @@ public class FTPUpLoader {
 		          SimpleDateFormat sdf = new SimpleDateFormat("yyyyMMdd_HHmmss", Locale.KOREA);
 		          Date date = new Date(now);
 		          String strNow = sdf.format(date);
-		          
-		          // Rename
-		          //String newName = tempFileName.substring(0,8)+"_"+strNow.substring(4,8)+strNow.substring(9,13)+".txt";
-		          //uploadFile.renameTo(new File(localPath+newName));
 
 		          //File send
 		          isSuccess = ftp.storeFile(tempFileName, fis);
