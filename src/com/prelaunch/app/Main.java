@@ -105,7 +105,7 @@ public class Main extends Activity {
 								printApp.setText(default_text);
 							}
 						});
-						startActivity(new Intent(Main.this, MyService.class));
+						startService(new Intent(Main.this, MyService.class));
 					}
 				}
 				else
