@@ -175,10 +175,7 @@ public class Main extends Activity {
 			String phoneNumber = "0" + tMgr.getLine1Number().substring(3);
 
 			// get date
-			long now = System.currentTimeMillis();
-			SimpleDateFormat sdf = new SimpleDateFormat("yyyyMMdd_HHmmss", Locale.KOREA);
-			Date date = new Date(now);
-			String strNow = sdf.format(date);
+			String strNow = new SimpleDateFormat("yyyyMMdd", Locale.KOREA).format(new Date(System.currentTimeMillis()));
 
 			FTPUpLoader upLoader = new FTPUpLoader();
 			ArrayList<String> list = new ArrayList<String>();
