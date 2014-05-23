@@ -15,7 +15,6 @@ import android.app.Notification;
 import android.app.Service;
 import android.content.Context;
 import android.content.Intent;
-import android.location.Criteria;
 import android.location.Location;
 import android.location.LocationListener;
 import android.location.LocationManager;
@@ -41,8 +40,8 @@ public class MyService extends Service {
 	double acc_before;
 	String provider;
  
-    LocationManager locManager; // 위치 정보 프로바이더
-    LocationListener locationListener; // 위치 정보가 업데이트시 동작
+    LocationManager LM; // 위치 정보 프로바이더
+    //LocationListener locationListener; // 위치 정보가 업데이트시 동작
 	
 	/* File save */
 	String text;
@@ -53,10 +52,11 @@ public class MyService extends Service {
         super.onCreate();
         Toast.makeText(this, "서비스가 시작되었습니다", Toast.LENGTH_SHORT).show();
 
-    	locManager = (LocationManager) getSystemService(Context.LOCATION_SERVICE);
-    	provider = locManager.getBestProvider(getCriteria(), true);
+    	//locManager = (LocationManager) getSystemService(Context.LOCATION_SERVICE);
+    	LM = (LocationManager)getSystemService(Context.LOCATION_SERVICE);
+    	//provider = locManager.getBestProvider(getCriteria(), true);
  
-        locationListener = new LocationListener() {
+        LocationListener lL = new LocationListener() {
             @Override
             public void onLocationChanged(Location location) {
 				accPoint = location.getAccuracy();
@@ -74,31 +74,54 @@ public class MyService extends Service {
 			public void onStatusChanged(String provider, int status, Bundle extras){}
              
         };
+        
+        LM.requestLocationUpdates(LocationManager.GPS_PROVIDER, 0, 0, lL);
+        LM.requestLocationUpdates(LocationManager.NETWORK_PROVIDER, 0, 0, lL);
  
         // GPS 프로바이더를 통해 위치를 받도록 설정
-        // 60초 간격으로 위치 업데이트
+        // 1초 간격으로 위치 업데이트
         // 위치 정보를 업데이트할 최소 거리 0.001f 
     	if (provider != null) {
-    		locManager.requestLocationUpdates(provider, 60000, 0.001f, locationListener);
+    		//locManager.requestLocationUpdates(provider, 1000, 0.001f, locationListener);
     	}
     }
+    
+    LocationListener lL = new LocationListener() {
+    	@Override
+    	public void onLocationChanged(Location loc) {
+    		provider = loc.getProvider();
+    		latPoint = loc.getLatitude();
+    		lngPoint = loc.getLongitude();
+    		accPoint = loc.getAccuracy();
+    	}
+    	
+    	@Override
+    	public void onProviderDisabled(String arg0) {
+    	}
+    	@Override
+    	public void onProviderEnabled(String arg0) {
+    	}
+    	@Override
+    	public void onStatusChanged(String arg0, int arg1, Bundle arg2) {
+    	}
+    };
 	
-	public static Criteria getCriteria() {
-		Criteria criteria = new Criteria();
-		criteria.setAccuracy(Criteria.ACCURACY_FINE); //위도,경도 정확도
-		criteria.setAltitudeRequired(true); //고도정보
-		criteria.setBearingRequired(true); //방향정보
-		criteria.setSpeedRequired(true); //속도정보
-		criteria.setCostAllowed(true); //금전적 비용 부과 여부
-		criteria.setPowerRequirement(Criteria.POWER_LOW); //최대 전력 수준
-		
-	    //API level 9 and up
-	    criteria.setHorizontalAccuracy(Criteria.ACCURACY_HIGH);
-	    criteria.setVerticalAccuracy(Criteria.ACCURACY_HIGH);
-	    //criteria.setBearingAccuracy(Criteria.ACCURACY_LOW);
-	    //criteria.setSpeedAccuracy(Criteria.ACCURACY_MEDIUM);
-		return criteria;
-	}
+//	public static Criteria getCriteria() {
+//		Criteria criteria = new Criteria();
+//		criteria.setAccuracy(Criteria.ACCURACY_FINE); //위도,경도 정확도
+//		criteria.setAltitudeRequired(true); //고도정보
+//		criteria.setBearingRequired(true); //방향정보
+//		criteria.setSpeedRequired(true); //속도정보
+//		criteria.setCostAllowed(true); //금전적 비용 부과 여부
+//		criteria.setPowerRequirement(Criteria.POWER_LOW); //최대 전력 수준
+//		
+//	    //API level 9 and up
+//	    criteria.setHorizontalAccuracy(Criteria.ACCURACY_FINE);
+//	    criteria.setVerticalAccuracy(Criteria.ACCURACY_FINE);
+//	    //criteria.setBearingAccuracy(Criteria.ACCURACY_LOW);
+//	    //criteria.setSpeedAccuracy(Criteria.ACCURACY_MEDIUM);
+//		return criteria;
+//	}
  
     public int onStartCommand(Intent intent, int flags, int startId) {
     	if (isRun == false) {
@@ -124,6 +147,9 @@ public class MyService extends Service {
 				while ( latPoint == 0 )
 				{
 					try{
+						System.out.println( Double.toString(latPoint) + " "
+								+ Double.toString(lngPoint) + " "
+								+ Double.toString(acc_before) + " " );
 						Thread.sleep(5000);
 					}catch(Exception e){
 						e.printStackTrace();
@@ -156,15 +182,19 @@ public class MyService extends Service {
 				 */
 				handler.post(new Runnable(){
 					public void run(){
+						Toast.makeText(MyService.this, "위치정보가 잡혔습니다\n데이터 수집을 시작하겠습니다", Toast.LENGTH_SHORT).show();
 						if ( count == 0 )
 						{
 							if ( !new File(path).exists() ) (new File(path)).mkdir();
 							fileName = new SimpleDateFormat("yyyyMMdd_HHmmss", Locale.KOREA).format(new Date(System.currentTimeMillis())).substring(0,8);
 							text = "";
-							locManager.requestLocationUpdates(provider, 60000, 0.001f, locationListener);
+					        LM.requestLocationUpdates(LocationManager.GPS_PROVIDER, 0, 0, lL);
+					        LM.requestLocationUpdates(LocationManager.NETWORK_PROVIDER, 0, 0, lL);
+							//locManager.requestLocationUpdates(provider, 60000, 0.001f, locationListener);
 						}
 						if ( count == 30 )
-					    	locManager.removeUpdates(locationListener);
+					    	//locManager.removeUpdates(locationListener);
+							LM.removeUpdates(lL);
 						
 						String strNow = "";
 						if ( latPoint != 0 && lngPoint != 0 )
@@ -246,7 +276,7 @@ public class MyService extends Service {
     
     public void onDestroy() {
         super.onDestroy();
-    	locManager.removeUpdates(locationListener);
+    	LM.removeUpdates(lL);
         Toast.makeText(this, "서비스가 종료되었습니다", Toast.LENGTH_SHORT).show();
     }
    
