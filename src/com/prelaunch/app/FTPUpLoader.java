@@ -4,10 +4,7 @@ package com.prelaunch.app;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
-import java.sql.Date;
-import java.text.SimpleDateFormat;
 import java.util.ArrayList;
-import java.util.Locale;
 
 import org.apache.commons.net.ftp.FTP;
 import org.apache.commons.net.ftp.FTPClient;
@@ -89,10 +86,10 @@ public class FTPUpLoader {
 		          ftpHdr.sendMessage(msg);
 		          
 		          // Get date
-		          long now = System.currentTimeMillis();
+		          /*long now = System.currentTimeMillis();
 		          SimpleDateFormat sdf = new SimpleDateFormat("yyyyMMdd_HHmmss", Locale.KOREA);
 		          Date date = new Date(now);
-		          String strNow = sdf.format(date);
+		          String strNow = sdf.format(date);*/
 
 		          //File send
 		          isSuccess = ftp.storeFile(tempFileName, fis);
