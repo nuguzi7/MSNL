@@ -28,11 +28,12 @@ import android.telephony.TelephonyManager;
 import android.util.Log;
 import android.view.Menu;
 import android.view.View;
+import android.view.View.OnClickListener;
 import android.widget.Button;
 import android.widget.TextView;
 import android.widget.Toast;
 
-public class Main extends Activity {
+public class Main extends Activity implements OnClickListener {
 
 	static int BUFFER_SIZE = 1024;
 	int count = 0;
@@ -41,7 +42,7 @@ public class Main extends Activity {
 	String dataPath = Environment.getExternalStorageDirectory().getPath() + "/MSNL/Data/";
 	String tmpPath = Environment.getExternalStorageDirectory().getPath() + "/MSNL/tmp/";
 
-	Button bun, bun2, bun3;
+	Button btn, btn2, btn3;
 	String default_text = "<사용법>\n" +
 			"1.어플을 켜고 'Start'버튼을 누릅니다\n" +
 			"2.밑에 검정색으로 '서비스가 시작되었습니다'라고 뜨면 다른 일을 하시면 됩니다\n" +
@@ -68,89 +69,75 @@ public class Main extends Activity {
 		super.onCreate(savedInstanceState);
 		setContentView(R.layout.main);
 		
-		/*[StrictMode 정의]
-		진저브레드에서 부터 추가된 일종의 개발툴로 개발자가 실수하는 것들을 감지하고 해결 할 수 있도록 돕는 모드
-		(실재로 수정하지는 않음 단지 알려줌)
-		
-		[StrictMode의 주요기능]
-		메인 스레드에서 디스크 접근, 네트워크 접근등의 비효율적인 작업을 하려는 것을 감지하여 프로그램 이 부드럽게 작동하도록 돕고, 
-		빠른 응답을 가지도록 함
-		
-		이 코드로 NetworkOnMainThreadException 처리할 수 있다
-		 */
-		StrictMode.ThreadPolicy policy = new StrictMode.ThreadPolicy.Builder().permitAll().build();
-		StrictMode.setThreadPolicy(policy);
+		// StrictMode setting
+		if(android.os.Build.VERSION.SDK_INT > 9) {
+		    StrictMode.ThreadPolicy policy = new StrictMode.ThreadPolicy.Builder().permitAll().build();
+	        StrictMode.setThreadPolicy(policy);
+		}
 		
 		// 폴더 체크 및 생성
 		if( !(new File(Path).exists()) ) (new File(Path)).mkdir();
 		if( !(new File(dataPath).exists()) ) (new File(dataPath)).mkdir();
 		if( !(new File(tmpPath).exists()) ) (new File(tmpPath)).mkdir();
 
-		bun = (Button)findViewById(R.id.start);
-		if ( MyService.isRun ) bun.setText("Stop");
-		bun2 = (Button)findViewById(R.id.toServer);
-		bun3 = (Button)findViewById(R.id.check);
+		btn = (Button)findViewById(R.id.start);
+		if ( MyService.isRun ) btn.setText("Stop");
+		btn2 = (Button)findViewById(R.id.toServer);
+		btn3 = (Button)findViewById(R.id.check);
+		
+		btn.setOnClickListener(this);
+		btn2.setOnClickListener(this);
+		btn3.setOnClickListener(this);
 
 		printApp = (TextView)findViewById(R.id.printApp);
 		printApp.setText(default_text);
-		bun.setOnClickListener(new View.OnClickListener() { // Start
-			public void onClick(View v) {
-				if ( bun.getText().toString().equals("Start") )
-				{
-					if ( checkGPS() )
-					{
-						handler.post(new Runnable(){
-							public void run(){
-								bun.setText("Stop");
-								printApp.setText(default_text);
-							}
-						});
-						startService(new Intent(Main.this, MyService.class));
-					}
-				}
-				else
+	}
+	
+	public void onClick(View v)
+	{
+		switch( v.getId() )
+		{
+		case R.id.start:
+			if ( btn.getText().toString().equals("Start") )
+			{
+				if ( checkGPS() )
 				{
 					handler.post(new Runnable(){
 						public void run(){
-							bun.setText("Start");
+							btn.setText("Stop");
 							printApp.setText(default_text);
 						}
 					});
-					stopService(new Intent(Main.this, MyService.class));
+					startService(new Intent(Main.this, MyService.class));
 				}
 			}
-		});
-		bun2.setOnClickListener(new View.OnClickListener() { // toServer
-			public void onClick(View v) {
-				MyService.isRun = false;
+			else
+			{
 				handler.post(new Runnable(){
 					public void run(){
-						bun.setText("Start");
+						btn.setText("Start");
+						printApp.setText(default_text);
 					}
 				});
 				stopService(new Intent(Main.this, MyService.class));
-				new Thread(new ftpSend()).start();
 			}
-		});
-		bun3.setOnClickListener(new View.OnClickListener() { // ServiceCheck
-			public void onClick(View v) {
-				/*if ( checkGPS() )
-				{
-					if ( MyService.isRun )
-					{
-						Toast.makeText(Main.this, Double.toString(MyService.latPoint) + " "
-								+ Double.toString(MyService.lngPoint) + " "
-								+ Double.toString(MyService.accPoint), Toast.LENGTH_SHORT).show();
-					}
-					else
-					{
-						Toast.makeText(Main.this, "서비스가 실행중이 아닙니다", Toast.LENGTH_SHORT).show();
-					}
-				}*/
-				startActivity(new Intent(Main.this, Dispatcher.class));
-			}
-		});
-
+			break;
+			
+		case R.id.toServer:
+			MyService.isRun = false;
+			handler.post(new Runnable(){
+				public void run(){
+					btn.setText("Start");
+				}
+			});
+			stopService(new Intent(Main.this, MyService.class));
+			new Thread(new ftpSend()).start();
+			break;
+			
+		case R.id.check:
+			startActivity(new Intent(Main.this, Dispatcher.class));
+			break;
+		}
 	}
 
 	public boolean checkGPS() {
@@ -234,7 +221,7 @@ public class Main extends Activity {
 			}
 			
 			// Connect to server
-			String ftpPath = "/Users/dcmichael/web/preteam/lab_data/" + phoneNumber;
+			String ftpPath = "/Users/dcmichael/web/oldweb/preteam/lab_data/" + phoneNumber;
 			boolean re = upLoader.sendFtpServer("msn.unist.ac.kr", 21, "dcmichael", "bestmsnl", ftpPath, tmpPath, zipList);
 
 			msgSend( re?"\n\n업로드 완료":"\n\n업로드 실패", 2 );

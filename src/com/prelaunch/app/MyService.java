@@ -60,7 +60,8 @@ public class MyService extends Service {
 		LM = (LocationManager) getSystemService(Context.LOCATION_SERVICE);
 
 		// Set provider
-		LM.requestLocationUpdates(LocationManager.GPS_PROVIDER, 0, 0, lL);
+		// 에너지 소모를 줄이기 위해 GPS provider 사용 중지
+		//LM.requestLocationUpdates(LocationManager.GPS_PROVIDER, 0, 0, lL);
 		LM.requestLocationUpdates(LocationManager.NETWORK_PROVIDER, 0, 0, lL);
 	}
 
@@ -177,7 +178,7 @@ public class MyService extends Service {
 					}
 				});
 
-				/* 1초 sleep */
+				// data collection interval : 1000ms
 				try {
 					Thread.sleep(1000);
 				} catch (Exception e) {
@@ -193,7 +194,7 @@ public class MyService extends Service {
 		text = "";
 
 		try {
-			/* 파일 체크 및 생성 */
+			// File check & create
 			File file = new File(dataPath + fileName);
 			if (!file.exists()) {
 				file.createNewFile();
@@ -203,8 +204,8 @@ public class MyService extends Service {
 		}
 	}
 
+	// Save data memory to file
 	public void fileSave() {
-		/* 파일에 저장 */
 		File file = new File(dataPath + fileName);
 		try {
 			RandomAccessFile raf = new RandomAccessFile(file, "rw");
@@ -219,8 +220,9 @@ public class MyService extends Service {
 		count = 0;
 	}
 
-	public static int getBatteryPercentage(Context context) {
-		//getBatteryPercentage(getApplicationContext())
+	// getBatteryPercentage(getApplicationContext())
+	public static int getBatteryPercentage(Context context)
+	{
 		Intent batteryStatus = context.registerReceiver(null, new IntentFilter(Intent.ACTION_BATTERY_CHANGED));
 		int level = batteryStatus.getIntExtra(BatteryManager.EXTRA_LEVEL, -1);
 		int scale = batteryStatus.getIntExtra(BatteryManager.EXTRA_SCALE, -1);
