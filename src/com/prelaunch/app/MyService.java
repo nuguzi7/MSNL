@@ -133,7 +133,7 @@ public class MyService extends Service {
 	class mRun implements Runnable {
 		public void run() {
 			count = 0;
-			//while (latPoint == 0);
+			while (latPoint == 0);
 			makeNotification("위치 정보를 찾았습니다 \n데이터 수집을 시작하겠습니다");
 
 			while (isRun) {
