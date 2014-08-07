@@ -5,11 +5,17 @@ import java.io.IOException;
 import java.io.RandomAccessFile;
 import java.sql.Date;
 import java.text.SimpleDateFormat;
+import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
 
+import org.json.JSONArray;
+import org.json.JSONException;
+import org.json.JSONObject;
+
 import android.app.ActivityManager;
+import android.app.ActivityManager.RunningAppProcessInfo;
 import android.app.ActivityManager.RunningTaskInfo;
 import android.app.Notification;
 import android.app.NotificationManager;
@@ -18,6 +24,10 @@ import android.app.Service;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
+import android.hardware.Sensor;
+import android.hardware.SensorEvent;
+import android.hardware.SensorEventListener;
+import android.hardware.SensorManager;
 import android.location.Location;
 import android.location.LocationListener;
 import android.location.LocationManager;
@@ -28,18 +38,21 @@ import android.os.Environment;
 import android.os.Handler;
 import android.os.IBinder;
 import android.os.PowerManager;
+import android.provider.Settings.SettingNotFoundException;
 import android.support.v4.app.NotificationCompat;
+import android.util.Log;
 
 public class MyService extends Service {
-	String Path = Environment.getExternalStorageDirectory().getPath() + "/MSNL/";
+	String Path = Environment.getExternalStorageDirectory().getPath()
+			+ "/MSNL/";
 	String dataPath = Path + "Data/";
 	String tmpPath = Path + "tmp/";
-	
-	static double latPoint = 0, lngPoint = 0, accPoint = 0;
+
+	private static double latPoint = 0, lngPoint = 0, accPoint = 0;
+	private double acc_X, acc_Y, acc_Z;
 	static boolean isRun = false;
 	Handler handler = new Handler();
 	public int num = 0;
-	boolean screenOn = true;
 
 	// GPS
 	int count;
@@ -47,6 +60,7 @@ public class MyService extends Service {
 	double acc_before;
 	String provider;
 
+	SensorManager SM;
 	LocationManager LM;
 
 	// File save
@@ -56,14 +70,25 @@ public class MyService extends Service {
 
 	public void onCreate() {
 		super.onCreate();
+		
+		SM = (SensorManager)getSystemService(SENSOR_SERVICE);
+		SM.registerListener(sL, SM.getDefaultSensor(Sensor.TYPE_ACCELEROMETER), SensorManager.SENSOR_DELAY_NORMAL);
 
 		LM = (LocationManager) getSystemService(Context.LOCATION_SERVICE);
-
-		// Set provider
-		// 에너지 소모를 줄이기 위해 GPS provider 사용 중지
-		//LM.requestLocationUpdates(LocationManager.GPS_PROVIDER, 0, 0, lL);
 		LM.requestLocationUpdates(LocationManager.NETWORK_PROVIDER, 0, 0, lL);
 	}
+	
+	SensorEventListener sL = new SensorEventListener() {
+		@Override
+		public void onAccuracyChanged(Sensor arg0, int arg1) {
+		}
+		@Override
+		public void onSensorChanged(SensorEvent se) {
+			acc_X = se.values[0];
+			acc_Y = se.values[1];
+			acc_Z = se.values[2];
+		}
+	};
 
 	LocationListener lL = new LocationListener() {
 		@Override
@@ -96,7 +121,8 @@ public class MyService extends Service {
 		if (isRun == false) {
 			isRun = true;
 			new Thread(new mRun()).start();
-			startForeground(1, getMyActivityNotification("데이터 수집을 시작합니다", true));
+			startForeground(1,
+					getMyActivityNotification("위치 정보를 찾는 중입니다.", true));
 		}
 
 		return START_STICKY;
@@ -107,30 +133,26 @@ public class MyService extends Service {
 	class mRun implements Runnable {
 		public void run() {
 			count = 0;
-			while (latPoint == 0);
-			makeNotification("위치 정보를 찾았습니다\n데이터 수집을 시작하겠습니다");
+			//while (latPoint == 0);
+			makeNotification("위치 정보를 찾았습니다 \n데이터 수집을 시작하겠습니다");
 
 			while (isRun) {
 
 				// 어플 목록 초기화
 				name = "";
 
-				// 화면 체크
-				PowerManager pn = (PowerManager) getSystemService(Context.POWER_SERVICE);
-				screenOn = pn.isScreenOn();
-
 				// 어플 목록 받아오기
 				ActivityManager am = (ActivityManager) getSystemService(Context.ACTIVITY_SERVICE);
 				List<RunningTaskInfo> Info = am.getRunningTasks(20);
-				for (Iterator<RunningTaskInfo> iterator = Info.iterator(); iterator
-						.hasNext();) {
-					RunningTaskInfo runningTaskInfo = (RunningTaskInfo) iterator
-							.next();
-					name += runningTaskInfo.topActivity.getPackageName();
+				for (Iterator<RunningTaskInfo> iterator = Info.iterator(); iterator.hasNext();) {
+					RunningTaskInfo runningTaskInfo = (RunningTaskInfo) iterator.next();
+					final String packageName = runningTaskInfo.topActivity.getPackageName();
+					name += packageName;
 					if (iterator.hasNext()) {
 						name += " ";
 					}
 				}
+				 
 
 				/*
 				 * Initialize ( count == 0 ) 
@@ -141,35 +163,29 @@ public class MyService extends Service {
 					public void run() {
 						if (count == 0) {
 							fileInit();
-							LM.requestLocationUpdates(
-									LocationManager.GPS_PROVIDER, 60000, 0, lL);
-							LM.requestLocationUpdates(
-									LocationManager.NETWORK_PROVIDER, 60000, 0, lL);
-						}
-
-						if (count == 30) {
-							LM.removeUpdates(lL);
+							// 에너지 소모를 줄이기 위해 GPS provider 사용 중지
+							LM.requestLocationUpdates(LocationManager.NETWORK_PROVIDER, 10000, 0, lL);
 						}
 
 						count++;
 
 						// 시간 체크
-						String strNow = new SimpleDateFormat("yyyyMMdd_HHmmss",
-								Locale.KOREA).format(new Date(System
-								.currentTimeMillis()));
+						String strNow = getTime();
 
 						// 날짜가 바뀔 시
 						if (!fileName.equals(strNow.substring(0, 8) + ".txt")) {
 							fileSave();
 						} else {
 							// fileSave용 변수 만들기
-							text += Double.toString(latPoint) + " "
-									+ Double.toString(lngPoint) + " "
-									+ Double.toString(acc_before) + " "
-									+ Integer.toString(getBatteryPercentage(getApplicationContext())) + " "
-									+ Boolean.toString(screenOn) + " "
-									+ strNow + " "
-									+ name.toString() + "\n";
+//							text += Double.toString(latPoint) + " "
+//								+ Double.toString(lngPoint) + " "
+//								+ Double.toString(acc_before) + " "
+//								+ Integer.toString(getBatteryPercentage(getApplicationContext())) + " "
+//								+ Boolean.toString(screenStatus()) + " "
+//								+ strNow + " "
+//								+ name.toString() + "\n";
+							text += jsonCreate().toString() + "\n";
+							Log.i("MyService",text);
 						}
 
 						if (count >= 180) {
@@ -187,6 +203,83 @@ public class MyService extends Service {
 			}
 		}
 	};
+	
+	private JSONObject jsonCreate()
+	{
+		JSONObject json_result = new JSONObject();
+		
+		
+		// SENSOR
+		JSONObject json_sensor, json_gps, json_acc;
+		try {
+			json_gps = new JSONObject()
+				.put("lat", latPoint)
+				.put("lng", lngPoint)
+				.put("acc", accPoint);
+			json_acc = new JSONObject()
+				.put("X", acc_X)
+				.put("Y", acc_Y)
+				.put("Z", acc_Z);
+			json_sensor = new JSONObject()
+				.put("GPS",json_gps)
+				.put("ACC",json_acc);
+			json_result.put("sensor", json_sensor);
+		} catch (JSONException e) {
+			e.printStackTrace();
+		}
+		
+		// STATUS
+		JSONObject json_status, json_battery;
+		try {
+			json_battery = new JSONObject()
+				.put("percentage", getBatteryPercentage(getApplicationContext()))
+				.put("status", checkBatteryState()); // 0:Charging 1:Full Battery 2:Not Charging
+			json_status = new JSONObject()
+				.put("date", getTime())
+				.put("screen_status", screenStatus())
+				.put("brightness", getBrightness())
+				.put("battery", json_battery);
+			json_result.put("status", json_status);
+		} catch (JSONException e) {
+			e.printStackTrace();
+		}
+		
+		// APP
+		JSONArray json_apps = new JSONArray();
+		ArrayList<String> apps = appList();
+		try {
+			for ( int i=0; i<apps.size(); i++ )
+			{
+				String appName = apps.get(i);
+				JSONObject app = new JSONObject()
+					.put("name", appName)
+					//.put("memory_usage", 0)
+					.put("importance", getAppImportance(appName));
+				json_apps.put(app);
+			}
+			json_result.put("app", json_apps);
+		} catch (JSONException e) {
+			e.printStackTrace();
+		}
+		
+		return json_result;
+	}
+	
+	public ArrayList<String> appList() 
+	{
+		ArrayList<String> appList = new ArrayList<String>();
+		
+		ActivityManager am = (ActivityManager) getSystemService(Context.ACTIVITY_SERVICE);
+		List<RunningTaskInfo> Info = am.getRunningTasks(20);
+		for (Iterator<RunningTaskInfo> iterator = Info.iterator(); iterator.hasNext();) {
+			RunningTaskInfo runningTaskInfo = (RunningTaskInfo) iterator.next();
+			appList.add(runningTaskInfo.topActivity.getPackageName());
+			if (iterator.hasNext()) {
+				name += " ";
+			}
+		}
+		return appList;
+	}
 
 	public void fileInit() {
 		fileName = new SimpleDateFormat("yyyyMMdd", Locale.KOREA)
@@ -219,11 +312,16 @@ public class MyService extends Service {
 		/* 초기화 */
 		count = 0;
 	}
+	
+	private String getTime()
+	{
+		return new SimpleDateFormat("yyyyMMdd_HHmmss",Locale.KOREA).format(new Date(System.currentTimeMillis()));
+	}
 
 	// getBatteryPercentage(getApplicationContext())
-	public static int getBatteryPercentage(Context context)
-	{
-		Intent batteryStatus = context.registerReceiver(null, new IntentFilter(Intent.ACTION_BATTERY_CHANGED));
+	public static int getBatteryPercentage(Context context) {
+		Intent batteryStatus = context.registerReceiver(null, new IntentFilter(
+				Intent.ACTION_BATTERY_CHANGED));
 		int level = batteryStatus.getIntExtra(BatteryManager.EXTRA_LEVEL, -1);
 		int scale = batteryStatus.getIntExtra(BatteryManager.EXTRA_SCALE, -1);
 
@@ -236,29 +334,27 @@ public class MyService extends Service {
 		PendingIntent contentIntent = PendingIntent.getActivity(this, 0,
 				new Intent(this, Main.class), 0);
 
-		if (tick == true)
-		{
+		if (tick == true) {
 			return new NotificationCompat.Builder(getApplicationContext())
 					.setContentTitle(getString(R.string.team_name))
-					.setContentText(text)
-					.setSmallIcon(R.drawable.ic_launcher)
-					.setAutoCancel(true)
+					.setContentText(text).setSmallIcon(R.drawable.ic_launcher)
+					.setTicker(text).setAutoCancel(true)
 					.setContentIntent(contentIntent).build();
-		} else
-		{
+		} else {
 			return new NotificationCompat.Builder(getApplicationContext())
 					.setContentTitle(getString(R.string.team_name))
-					.setContentText(text)
-					.setSmallIcon(R.drawable.ic_launcher)
-					.setTicker(text)
-					.setAutoCancel(true)
-					.setContentIntent(contentIntent).build();
+					.setContentText(text).setSmallIcon(R.drawable.ic_launcher)
+					.setAutoCancel(true).setContentIntent(contentIntent)
+					.build();
 		}
 	}
 
 	// Notification to foreground
 	private void updateForeground(String text) {
 		Notification notification = getMyActivityNotification(text, false);
+
+//		PendingIntent contentIntent = PendingIntent.getActivity(this, 0,
+//				new Intent(this, Main.class), 0);
 
 		NotificationManager mNotificationManager = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
 		mNotificationManager.notify(1, notification);
@@ -268,6 +364,66 @@ public class MyService extends Service {
 	private void makeNotification(String text) {
 		NotificationManager mNotificationManager = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
 		mNotificationManager.notify(7777, getMyActivityNotification(text, true));
+	}
+	
+	private boolean screenStatus() {
+		PowerManager pn = (PowerManager) getSystemService(Context.POWER_SERVICE);
+		return pn.isScreenOn();
+	}
+
+	private int getAppImportance(String packageName) {
+		ActivityManager activityManager = (ActivityManager) getSystemService(Context.ACTIVITY_SERVICE);
+		List<RunningAppProcessInfo> appProcesses = activityManager.getRunningAppProcesses();
+		if (appProcesses == null) {
+			return -1;
+		}
+		for (RunningAppProcessInfo appProcess : appProcesses) {
+			if (appProcess.processName.equals(packageName)) {
+				return appProcess.importance;
+			}
+		}
+		return -1;
+	}
+
+	private float getBrightness() {
+		float curBrightnessValue = -1;
+		try {
+			curBrightnessValue = android.provider.Settings.System.getInt(
+					getContentResolver(),
+					android.provider.Settings.System.SCREEN_BRIGHTNESS);
+		} catch (SettingNotFoundException e) {
+			e.printStackTrace();
+		}
+		return curBrightnessValue;
+	}
+
+	private long getMemoryUsage() {
+		return Runtime.getRuntime().totalMemory() - Runtime.getRuntime().freeMemory();
+	}
+
+	/*
+	 * [Return Value] 0 : Charging 1 : Full Battery 2 : Not Charging
+	 */
+	private int checkBatteryState() {
+		/*
+		 * ++++ You could also detect current level of charge by getting more
+		 * details from your sticky intent : BatteryManager.EXTRA_LEVEL to get
+		 * current level and BatterManager.EXTRA_SCALE to get the maximum level.
+		 */
+		IntentFilter filter = new IntentFilter(Intent.ACTION_BATTERY_CHANGED);
+		Intent batteryStatus = registerReceiver(null, filter);
+
+		int chargeState = batteryStatus.getIntExtra(
+				BatteryManager.EXTRA_STATUS, -1);
+
+		switch (chargeState) {
+		case BatteryManager.BATTERY_STATUS_CHARGING:
+			return 0;
+		case BatteryManager.BATTERY_STATUS_FULL:
+			return 1;
+		default:
+			return 2;
+		}
 	}
 
 	public void onDestroy() {

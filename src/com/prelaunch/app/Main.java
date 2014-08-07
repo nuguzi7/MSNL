@@ -18,7 +18,9 @@ import android.app.ActivityManager;
 import android.app.ActivityManager.RunningServiceInfo;
 import android.content.Context;
 import android.content.Intent;
+import android.content.IntentFilter;
 import android.location.LocationManager;
+import android.os.BatteryManager;
 import android.os.Bundle;
 import android.os.Environment;
 import android.os.Handler;
@@ -135,7 +137,15 @@ public class Main extends Activity implements OnClickListener {
 			break;
 			
 		case R.id.check:
-			startActivity(new Intent(Main.this, Dispatcher.class));
+			//startActivity(new Intent(Main.this, Dispatcher.class));
+			IntentFilter ifilter = new IntentFilter(Intent.ACTION_BATTERY_CHANGED);
+			Intent batteryStatus = registerReceiver(null, ifilter);
+			int level = batteryStatus.getIntExtra(BatteryManager.EXTRA_LEVEL, -1);
+			int scale = batteryStatus.getIntExtra(BatteryManager.EXTRA_SCALE, -1);
+
+			float batteryPct = level / (float)scale;
+		    
+		    Toast.makeText(Main.this, Integer.toString(level) + "/" + Integer.toString(scale) + "=" + Float.toString(batteryPct), Toast.LENGTH_LONG).show();
 			break;
 		}
 	}
