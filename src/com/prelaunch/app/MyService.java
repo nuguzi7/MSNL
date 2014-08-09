@@ -14,7 +14,9 @@ import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
 
+import android.annotation.SuppressLint;
 import android.app.ActivityManager;
+import android.app.ActivityManager.MemoryInfo;
 import android.app.ActivityManager.RunningAppProcessInfo;
 import android.app.ActivityManager.RunningTaskInfo;
 import android.app.Notification;
@@ -37,6 +39,7 @@ import android.os.Bundle;
 import android.os.Environment;
 import android.os.Handler;
 import android.os.IBinder;
+import android.os.Message;
 import android.os.PowerManager;
 import android.provider.Settings.SettingNotFoundException;
 import android.support.v4.app.NotificationCompat;
@@ -62,11 +65,14 @@ public class MyService extends Service {
 
 	SensorManager SM;
 	LocationManager LM;
+	ActivityManager aM;
+	long availableMegs;
+	MemoryInfo mi;
 
 	// File save
-	String text; // 파일 저장용 메모리
-	String name; // 어플 목록
-	String fileName; // 저장파일 이름(yyyymmdd.txt)
+	String text; // �뙆�씪 ���옣�슜 硫붾え由�
+	String name; // �뼱�뵆 紐⑸줉
+	String fileName; // ���옣�뙆�씪 �씠由�(yyyymmdd.txt)
 
 	public void onCreate() {
 		super.onCreate();
@@ -76,7 +82,20 @@ public class MyService extends Service {
 
 		LM = (LocationManager) getSystemService(Context.LOCATION_SERVICE);
 		LM.requestLocationUpdates(LocationManager.NETWORK_PROVIDER, 0, 0, lL);
+		
+		aM = (ActivityManager) getSystemService(ACTIVITY_SERVICE);
+		handler2.sendEmptyMessage(0);
 	}
+	
+	@SuppressLint("HandlerLeak") private Handler handler2 = new Handler() {
+    	public void handleMessage(Message msg) {
+    		mi = new MemoryInfo();
+    		aM.getMemoryInfo(mi);
+            availableMegs = mi.availMem / 1024L;
+    		handler2.sendEmptyMessageDelayed(0, 1000);
+    	}
+    };
+	
 	
 	SensorEventListener sL = new SensorEventListener() {
 		@Override
@@ -122,7 +141,7 @@ public class MyService extends Service {
 			isRun = true;
 			new Thread(new mRun()).start();
 			startForeground(1,
-					getMyActivityNotification("위치 정보를 찾는 중입니다.", true));
+					getMyActivityNotification("�쐞移� �젙蹂대�� 李얜뒗 以묒엯�땲�떎.", true));
 		}
 
 		return START_STICKY;
@@ -134,14 +153,14 @@ public class MyService extends Service {
 		public void run() {
 			count = 0;
 			while (latPoint == 0);
-			makeNotification("위치 정보를 찾았습니다 \n데이터 수집을 시작하겠습니다");
+			makeNotification("�쐞移� �젙蹂대�� 李얠븯�뒿�땲�떎 \n�뜲�씠�꽣 �닔吏묒쓣 �떆�옉�븯寃좎뒿�땲�떎");
 
 			while (isRun) {
 
-				// 어플 목록 초기화
+				// �뼱�뵆 紐⑸줉 珥덇린�솕
 				name = "";
 
-				// 어플 목록 받아오기
+				// �뼱�뵆 紐⑸줉 諛쏆븘�삤湲�
 				ActivityManager am = (ActivityManager) getSystemService(Context.ACTIVITY_SERVICE);
 				List<RunningTaskInfo> Info = am.getRunningTasks(20);
 				for (Iterator<RunningTaskInfo> iterator = Info.iterator(); iterator.hasNext();) {
@@ -163,20 +182,20 @@ public class MyService extends Service {
 					public void run() {
 						if (count == 0) {
 							fileInit();
-							// 에너지 소모를 줄이기 위해 GPS provider 사용 중지
+							// �뿉�꼫吏� �냼紐⑤�� 以꾩씠湲� �쐞�빐 GPS provider �궗�슜 以묒�
 							LM.requestLocationUpdates(LocationManager.NETWORK_PROVIDER, 10000, 0, lL);
 						}
 
 						count++;
 
-						// 시간 체크
+						// �떆媛� 泥댄겕
 						String strNow = getTime();
 
-						// 날짜가 바뀔 시
+						// �궇吏쒓� 諛붾�� �떆
 						if (!fileName.equals(strNow.substring(0, 8) + ".txt")) {
 							fileSave();
 						} else {
-							// fileSave용 변수 만들기
+							// fileSave�슜 蹂��닔 留뚮뱾湲�
 //							text += Double.toString(latPoint) + " "
 //								+ Double.toString(lngPoint) + " "
 //								+ Double.toString(acc_before) + " "
@@ -238,7 +257,8 @@ public class MyService extends Service {
 				.put("date", getTime())
 				.put("screen_status", screenStatus())
 				.put("brightness", getBrightness())
-				.put("battery", json_battery);
+				.put("battery", json_battery)
+				.put("memory",availableMegs);
 			json_result.put("status", json_status);
 		} catch (JSONException e) {
 			e.printStackTrace();
@@ -254,7 +274,8 @@ public class MyService extends Service {
 				JSONObject app = new JSONObject()
 					.put("name", appName)
 					//.put("memory_usage", 0)
-					.put("importance", getAppImportance(appName));
+					.put("importance", getAppImportance(appName))
+					.put("mem", getAppMemory(appName));
 				json_apps.put(app);
 			}
 			json_result.put("app", json_apps);
@@ -309,7 +330,7 @@ public class MyService extends Service {
 			e.printStackTrace();
 		}
 
-		/* 초기화 */
+		/* 珥덇린�솕 */
 		count = 0;
 	}
 	
@@ -379,7 +400,28 @@ public class MyService extends Service {
 		}
 		for (RunningAppProcessInfo appProcess : appProcesses) {
 			if (appProcess.processName.equals(packageName)) {
+				
 				return appProcess.importance;
+			}
+		}
+		return -1;
+	}
+	
+	private int getAppMemory(String packageName) {
+		ActivityManager activityManager = (ActivityManager) getSystemService(Context.ACTIVITY_SERVICE);
+		MemoryInfo memoryInfo = new ActivityManager.MemoryInfo();
+		activityManager.getMemoryInfo(memoryInfo);
+		List<RunningAppProcessInfo> appProcesses = activityManager.getRunningAppProcesses();
+		if (appProcesses == null) {
+			return -1;
+		}
+		for (RunningAppProcessInfo appProcess : appProcesses) {
+			if (appProcess.processName.equals(packageName)) {
+				int pids[] = new int[1];
+			    pids[0] = appProcess.pid;
+			    android.os.Debug.MemoryInfo[] memoryInfoArray = activityManager.getProcessMemoryInfo(pids);
+			    android.os.Debug.MemoryInfo pidMemoryInfo = memoryInfoArray[0];
+				return pidMemoryInfo.getTotalPss();
 			}
 		}
 		return -1;
@@ -397,9 +439,9 @@ public class MyService extends Service {
 		return curBrightnessValue;
 	}
 
-	private long getMemoryUsage() {
+	/*private long getMemoryUsage() {
 		return Runtime.getRuntime().totalMemory() - Runtime.getRuntime().freeMemory();
-	}
+	}*/
 
 	/*
 	 * [Return Value] 0 : Charging 1 : Full Battery 2 : Not Charging
@@ -429,7 +471,7 @@ public class MyService extends Service {
 	public void onDestroy() {
 		super.onDestroy();
 		LM.removeUpdates(lL);
-		makeNotification("서비스가 종료되었습니다");
+		makeNotification("�꽌鍮꾩뒪媛� 醫낅즺�릺�뿀�뒿�땲�떎");
 	}
 
 	public boolean onUnbind(Intent intent) {
